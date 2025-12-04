@@ -1,8 +1,11 @@
 <template>
-    <div class="mt-24px flex flex-col justify-center">
+    <div class="mt-24px flex flex-col justify-center items-center">
         <div
-            class="w-full relative select-none overflow-hidden"
-            :style="{ cursor: isDragging ? 'grabbing' : 'grab' }"
+            class="w-full relative select-none"
+            :style="{
+                cursor: isDragging ? 'grabbing' : 'grab',
+                minHeight: '150px'
+            }"
             @mousedown="startDrag"
             @mousemove="onDrag"
             @mouseup="endDrag"
@@ -12,7 +15,7 @@
             @touchend="endDrag"
         >
             <div
-                class="flex justify-between items-center w-full"
+                class="flex justify-center items-center gap-4"
                 :style="{
                     transform: `translateX(${currentTranslate}px)`,
                     transition: isDragging ? 'none' : 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -21,8 +24,7 @@
                 <div
                     v-for="(item, index) in visibleCards"
                     :key="item.key"
-                    class="flex flex-col items-center justify-center text-white font-bold cursor-pointer transition-all duration-500"
-                    :style="cardTransform(index)"
+                    class="flex flex-col items-center justify-center text-white font-bold cursor-pointer transition-all duration-500 flex-shrink-0"
                     @click="!isDragging && goTo(item.key)"
                 >
                     <div :style="cardStyle(index)">
@@ -99,8 +101,8 @@ const velocity = ref(0)
 const animationId = ref(null)
 const dragDistance = ref(0)
 
-// 卡片间距 (根据屏幕尺寸动态计算)
-const CARD_SPACING = ref(100)
+// 卡片间距 (卡片宽度 + gap)
+const CARD_SPACING = ref(120)
 
 onMounted(() => {
     updateCardSpacing()
@@ -116,7 +118,8 @@ onUnmounted(() => {
 
 function updateCardSpacing() {
     const width = window.innerWidth
-    CARD_SPACING.value = width < 640 ? 80 : 100
+    // 卡片宽度(68-44) + gap(16) + padding
+    CARD_SPACING.value = width < 640 ? 90 : 120
 }
 
 const visibleCards = computed(() => {
@@ -135,43 +138,40 @@ const visibleCards = computed(() => {
 const W_LARGE = 68
 const W_SMALL = 44
 
-// 计算卡片位置变换 - 根据拖拽距离动态调整
-function cardTransform(i) {
-    const progress = dragDistance.value / CARD_SPACING.value
-    const baseOffset = (i - 2) * CARD_SPACING.value
-
-    return {
-        transform: `translateX(${baseOffset}px)`,
-    }
-}
-
 const cardStyle = i => {
     // 计算与中心的距离 (考虑拖拽偏移)
-    const progress = Math.abs(dragDistance.value / CARD_SPACING.value)
-    const distanceFromCenter = Math.abs(i - 2) - progress
+    const dragProgress = dragDistance.value / CARD_SPACING.value
+    const distanceFromCenter = Math.abs(i - 2 + dragProgress)
 
-    const isCenter = Math.abs(distanceFromCenter) < 0.5
-    const scale = isCenter ? 1 : 0.7
+    // 平滑的缩放过渡
+    const isCenter = distanceFromCenter < 0.5
+    const scaleFactor = Math.max(0.7, 1 - distanceFromCenter * 0.3)
+
+    // 平滑的灰度过滤
+    const grayscale = Math.min(100, distanceFromCenter * 100)
 
     return {
         width: `${isCenter ? W_LARGE : W_SMALL}px`,
         padding: '10px',
         borderRadius: '50px',
-        filter: isCenter ? '' : 'grayscale(100%)',
+        filter: `grayscale(${grayscale}%)`,
         background: 'rgba(var(--v-theme-primary-4_5),1)',
-        transform: `scale(${scale})`,
+        transform: `scale(${scaleFactor})`,
         transition: isDragging.value ? 'all 0.2s ease-out' : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
         boxShadow: isCenter ? '0px 0px 138.4px #95FE3F' : 'none',
     }
 }
 
 const labelStyle = i => {
-    const progress = Math.abs(dragDistance.value / CARD_SPACING.value)
-    const distanceFromCenter = Math.abs(i - 2) - progress
-    const isCenter = Math.abs(distanceFromCenter) < 0.5
+    const dragProgress = dragDistance.value / CARD_SPACING.value
+    const distanceFromCenter = Math.abs(i - 2 + dragProgress)
+    const isCenter = distanceFromCenter < 0.5
+
+    // 平滑的透明度过渡
+    const opacity = Math.max(0, 1 - distanceFromCenter * 2)
 
     return {
-        opacity: isCenter ? 1 : 0,
+        opacity: opacity,
         transform: isCenter ? 'scale(1) translateY(0)' : 'scale(0.5) translateY(-10px)',
         pointerEvents: isCenter ? 'auto' : 'none',
         transition: isDragging.value ? 'all 0.2s ease-out' : 'all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
